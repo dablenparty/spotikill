@@ -2,6 +2,7 @@
 
 use std::sync::mpsc;
 
+use const_format::formatcp;
 use notify_rust::Notification;
 use sysinfo::{ProcessExt, System, SystemExt};
 use tray_item::TrayItem;
@@ -13,12 +14,16 @@ enum Message {
     Quit,
 }
 
+/// Gets a base notification with the app name and icon set.
 fn get_base_notification() -> Notification {
-    // TODO: const
-    let icon_path = env!("CARGO_MANIFEST_DIR").to_owned() + "/app-icon.ico";
+    const ICON_PATH: &str = formatcp!(
+        "{}{}app-icon.ico",
+        env!("CARGO_MANIFEST_DIR"),
+        std::path::MAIN_SEPARATOR
+    );
     Notification::new()
         .appname(CARGO_PKG_NAME)
-        .icon(icon_path.as_str())
+        .icon(ICON_PATH)
         .to_owned()
 }
 
