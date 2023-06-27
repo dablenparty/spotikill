@@ -1,6 +1,5 @@
 use std::sync::mpsc;
 
-use log::debug;
 use sysinfo::{ProcessExt, System, SystemExt};
 use tray_item::TrayItem;
 
@@ -44,7 +43,6 @@ fn main() {
                 break;
             }
             Ok(Message::KillSpotify) => {
-                debug!("Killing Spotify...");
                 kill_spotify_processes();
             }
             Err(mpsc::TryRecvError::Empty) => {}
