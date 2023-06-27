@@ -6,9 +6,20 @@ use notify_rust::Notification;
 use sysinfo::{ProcessExt, System, SystemExt};
 use tray_item::TrayItem;
 
+const CARGO_PKG_NAME: &str = env!("CARGO_PKG_NAME");
+
 enum Message {
     KillSpotify,
     Quit,
+}
+
+fn get_base_notification() -> Notification {
+    // TODO: const
+    let icon_path = env!("CARGO_MANIFEST_DIR").to_owned() + "/app-icon.ico";
+    Notification::new()
+        .appname(CARGO_PKG_NAME)
+        .icon(icon_path.as_str())
+        .to_owned()
 }
 
 fn kill_spotify_processes() {
@@ -17,13 +28,10 @@ fn kill_spotify_processes() {
     // usually, killing the Spotify process with the highest memory usage will kill all of them
     // but we kill all of them just to be sure
     let mut procs: Vec<_> = s.processes_by_exact_name("Spotify.exe").collect();
-    let icon_path = env!("CARGO_MANIFEST_DIR").to_owned() + "\\app-icon.ico";
     if procs.is_empty() {
-        Notification::new()
+        get_base_notification()
             .summary("Spotify Not Found")
             .body("No running Spotify processes were found, so nothing was done.")
-            .appname("spotikill")
-            .icon(&icon_path)
             .show()
             .unwrap();
         return;
@@ -32,18 +40,16 @@ fn kill_spotify_processes() {
     for proc in procs {
         proc.kill();
     }
-    Notification::new()
+    get_base_notification()
         .summary("Spotify Killed")
         .body("All Spotify processes have been killed.")
-        .appname("spotikill")
-        .icon(&icon_path)
         .show()
         .unwrap();
 }
 
 fn main() {
     let mut tray =
-        TrayItem::new("Tray Example", tray_item::IconSource::Resource("app-icon")).unwrap();
+        TrayItem::new(CARGO_PKG_NAME, tray_item::IconSource::Resource("app-icon")).unwrap();
     let (tx, rx) = mpsc::sync_channel(1);
     let kill_spotify_tx = tx.clone();
     tray.add_menu_item("Kill Spotify", move || {
@@ -57,9 +63,24 @@ fn main() {
     })
     .unwrap();
 
+    get_base_notification()
+        .summary(&format!("{CARGO_PKG_NAME} started!"))
+        .body(&format!(
+            "{CARGO_PKG_NAME} has started and is running in the tray."
+        ))
+        .show()
+        .unwrap();
+
     loop {
         match rx.try_recv() {
             Ok(Message::Quit) => {
+                get_base_notification()
+                    .summary(&format!("{CARGO_PKG_NAME} stopped!"))
+                    .body(&format!(
+                        "{CARGO_PKG_NAME} has stopped and is no longer running in the tray."
+                    ))
+                    .show()
+                    .unwrap();
                 break;
             }
             Ok(Message::KillSpotify) => {
