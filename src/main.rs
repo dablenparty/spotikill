@@ -1,5 +1,8 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
+
 use std::sync::mpsc;
 
+use notify_rust::Notification;
 use sysinfo::{ProcessExt, System, SystemExt};
 use tray_item::TrayItem;
 
@@ -14,10 +17,28 @@ fn kill_spotify_processes() {
     // usually, killing the Spotify process with the highest memory usage will kill all of them
     // but we kill all of them just to be sure
     let mut procs: Vec<_> = s.processes_by_exact_name("Spotify.exe").collect();
+    let icon_path = env!("CARGO_MANIFEST_DIR").to_owned() + "\\app-icon.ico";
+    if procs.is_empty() {
+        Notification::new()
+            .summary("Spotify Not Found")
+            .body("No running Spotify processes were found, so nothing was done.")
+            .appname("spotikill")
+            .icon(&icon_path)
+            .show()
+            .unwrap();
+        return;
+    }
     procs.sort_by(|a, b| b.memory().partial_cmp(&a.memory()).unwrap());
     for proc in procs {
         proc.kill();
     }
+    Notification::new()
+        .summary("Spotify Killed")
+        .body("All Spotify processes have been killed.")
+        .appname("spotikill")
+        .icon(&icon_path)
+        .show()
+        .unwrap();
 }
 
 fn main() {
@@ -39,7 +60,6 @@ fn main() {
     loop {
         match rx.try_recv() {
             Ok(Message::Quit) => {
-                println!("Quitting...");
                 break;
             }
             Ok(Message::KillSpotify) => {
