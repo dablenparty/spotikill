@@ -2,6 +2,7 @@
 
 use std::sync::mpsc;
 
+use anyhow::Context;
 use const_format::formatcp;
 use notify_rust::Notification;
 use sysinfo::{ProcessExt, System, SystemExt};
@@ -52,21 +53,33 @@ fn kill_spotify_processes() {
         .unwrap();
 }
 
-fn main() {
-    let mut tray =
-        TrayItem::new(CARGO_PKG_NAME, tray_item::IconSource::Resource("app-icon")).unwrap();
+fn show_anyhow_error(err: &anyhow::Error) {
+    get_base_notification()
+        .summary("spotikill Error")
+        .body(&format!("An error occurred: {}", err))
+        .show()
+        .unwrap();
+}
+
+fn inner_main() -> anyhow::Result<()> {
+    let mut tray = TrayItem::new(CARGO_PKG_NAME, tray_item::IconSource::Resource("app-icon"))
+        .context("Failed to create tray item.")?;
     let (tx, rx) = mpsc::sync_channel(1);
     let kill_spotify_tx = tx.clone();
     tray.add_menu_item("Kill Spotify", move || {
-        kill_spotify_tx.send(Message::KillSpotify).unwrap();
+        if let Err(e) = kill_spotify_tx.send(Message::KillSpotify) {
+            show_anyhow_error(&e.into());
+        }
     })
-    .unwrap();
+    .context("Failed to add 'Kill Spotify' menu item.")?;
 
     let quit_tx = tx;
     tray.add_menu_item("Quit", move || {
-        quit_tx.send(Message::Quit).unwrap();
+        if let Err(e) = quit_tx.send(Message::Quit) {
+            show_anyhow_error(&e.into());
+        }
     })
-    .unwrap();
+    .context("Failed to add 'Quit' menu item.")?;
 
     get_base_notification()
         .summary(&format!("{CARGO_PKG_NAME} started!"))
@@ -94,5 +107,19 @@ fn main() {
             Err(mpsc::TryRecvError::Empty) => {}
             Err(mpsc::TryRecvError::Disconnected) => break,
         }
+    }
+    Ok(())
+}
+
+fn main() {
+    if let Err(e) = inner_main() {
+        show_anyhow_error(&e);
+        // save error to file
+        let error_file_path = formatcp!(
+            "{}{}error.txt",
+            env!("CARGO_MANIFEST_DIR"),
+            std::path::MAIN_SEPARATOR
+        );
+        std::fs::write(error_file_path, format!("{:#?}", e)).unwrap();
     }
 }
