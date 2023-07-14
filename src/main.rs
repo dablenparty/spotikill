@@ -90,7 +90,9 @@ fn inner_main() -> anyhow::Result<()> {
         .unwrap();
 
     loop {
-        match rx.try_recv() {
+        // this MUST block. if it doesn't, the program gobbles up CPU cycles and the temperature rises to ridiculous levels
+        // maybe there's a deeper reason with a better fix, but the simplest answer is usually the best.
+        match rx.recv() {
             Ok(Message::Quit) => {
                 get_base_notification()
                     .summary(&format!("{CARGO_PKG_NAME} stopped!"))
@@ -104,8 +106,7 @@ fn inner_main() -> anyhow::Result<()> {
             Ok(Message::KillSpotify) => {
                 kill_spotify_processes();
             }
-            Err(mpsc::TryRecvError::Empty) => {}
-            Err(mpsc::TryRecvError::Disconnected) => break,
+            Err(_) => break,
         }
     }
     Ok(())
