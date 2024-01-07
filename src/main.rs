@@ -9,6 +9,7 @@ use sysinfo::{ProcessExt, System, SystemExt};
 use tray_item::TrayItem;
 
 const CARGO_PKG_NAME: &str = env!("CARGO_PKG_NAME");
+const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 enum Message {
     KillSpotify,
@@ -84,7 +85,7 @@ fn inner_main() -> anyhow::Result<()> {
     get_base_notification()
         .summary(&format!("{CARGO_PKG_NAME} started!"))
         .body(&format!(
-            "{CARGO_PKG_NAME} has started and is running in the tray."
+            "{CARGO_PKG_NAME} v{CARGO_PKG_VERSION} has started and is running in the tray."
         ))
         .show()
         .unwrap();
