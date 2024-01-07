@@ -42,7 +42,7 @@ fn kill_spotify_processes() {
             .unwrap();
         return;
     }
-    procs.sort_by(|a, b| b.memory().partial_cmp(&a.memory()).unwrap());
+    procs.sort_by_key(|b| std::cmp::Reverse(b.memory()));
     for proc in procs {
         proc.kill();
     }
@@ -106,7 +106,10 @@ fn inner_main() -> anyhow::Result<()> {
             Ok(Message::KillSpotify) => {
                 kill_spotify_processes();
             }
-            Err(_) => break,
+            Err(e) => {
+                show_anyhow_error(&e.into());
+                break;
+            }
         }
     }
     Ok(())
