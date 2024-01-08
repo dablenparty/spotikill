@@ -5,7 +5,7 @@ use std::sync::mpsc;
 use anyhow::Context;
 use const_format::formatcp;
 use notify_rust::Notification;
-use sysinfo::{ProcessExt, System, SystemExt};
+use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 use tray_item::TrayItem;
 
 const CARGO_PKG_NAME: &str = env!("CARGO_PKG_NAME");
@@ -30,7 +30,9 @@ fn get_base_notification() -> Notification {
 }
 
 fn kill_spotify_processes() {
-    let s = System::new_all();
+    let s = System::new_with_specifics(
+        RefreshKind::new().with_processes(ProcessRefreshKind::new().with_memory()),
+    );
     // sort by memory descending
     // usually, killing the Spotify process with the highest memory usage will kill all of them
     // but we kill all of them just to be sure
@@ -45,6 +47,16 @@ fn kill_spotify_processes() {
     }
     procs.sort_by_key(|b| std::cmp::Reverse(b.memory()));
     for proc in procs {
+        #[cfg(debug_assertions)]
+        {
+            let proc_name = proc.name();
+            let proc_memory = proc.memory();
+            let proc_pid = proc.pid();
+            println!(
+                "Killing process {proc_name} (PID {proc_pid}) with {proc_memory} bytes of memory..."
+            );
+        }
+
         proc.kill();
     }
     get_base_notification()
@@ -54,10 +66,13 @@ fn kill_spotify_processes() {
         .unwrap();
 }
 
-fn show_anyhow_error(err: &anyhow::Error) {
+fn show_error_notification<E>(err: &E)
+where
+    E: std::fmt::Display + Send + Sync + 'static,
+{
     get_base_notification()
         .summary("spotikill Error")
-        .body(&format!("An error occurred: {}", err))
+        .body(&format!("An error occurred: {err}"))
         .show()
         .unwrap();
 }
@@ -69,7 +84,7 @@ fn inner_main() -> anyhow::Result<()> {
     let kill_spotify_tx = tx.clone();
     tray.add_menu_item("Kill Spotify", move || {
         if let Err(e) = kill_spotify_tx.send(Message::KillSpotify) {
-            show_anyhow_error(&e.into());
+            show_error_notification(&e);
         }
     })
     .context("Failed to add 'Kill Spotify' menu item.")?;
@@ -77,7 +92,7 @@ fn inner_main() -> anyhow::Result<()> {
     let quit_tx = tx;
     tray.add_menu_item("Quit", move || {
         if let Err(e) = quit_tx.send(Message::Quit) {
-            show_anyhow_error(&e.into());
+            show_error_notification(&e);
         }
     })
     .context("Failed to add 'Quit' menu item.")?;
@@ -108,7 +123,7 @@ fn inner_main() -> anyhow::Result<()> {
                 kill_spotify_processes();
             }
             Err(e) => {
-                show_anyhow_error(&e.into());
+                show_error_notification(&e);
                 break;
             }
         }
@@ -118,7 +133,7 @@ fn inner_main() -> anyhow::Result<()> {
 
 fn main() {
     if let Err(e) = inner_main() {
-        show_anyhow_error(&e);
+        show_error_notification(&e);
         // save error to file
         let error_file_path = formatcp!(
             "{}{}error.txt",
