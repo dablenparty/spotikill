@@ -23,6 +23,10 @@ fn get_base_notification() -> Notification {
         env!("CARGO_MANIFEST_DIR"),
         std::path::MAIN_SEPARATOR
     );
+
+    // TODO: make a shortcut installer (ref: https://github.com/Robertof/make-shortcut-with-appusermodelid)
+    //* the windows crate should expose all the necessary interfaces and functions to do this
+
     // both finalize() and to_owned() just call clone() on the
     // builder, so it doesn't matter which one we use.
     // I just chose finalize() because it's a cool name.
