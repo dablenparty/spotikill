@@ -67,6 +67,7 @@ fn kill_spotify_processes() {
         return;
     }
     procs.sort_by_key(|b| std::cmp::Reverse(b.memory()));
+    let proc_count = procs.len();
     for proc in procs {
         #[cfg(debug_assertions)]
         {
@@ -80,7 +81,10 @@ fn kill_spotify_processes() {
 
         proc.kill();
     }
-    show_simple_notification("Spotify Killed", "All Spotify processes have been killed.");
+    show_simple_notification(
+        "Spotify Killed",
+        &format!("{proc_count} Spotify processes have been killed."),
+    );
 }
 
 fn show_error_notification<E>(err: &E)
