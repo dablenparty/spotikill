@@ -23,10 +23,32 @@ fn get_base_notification() -> Notification {
         env!("CARGO_MANIFEST_DIR"),
         std::path::MAIN_SEPARATOR
     );
+    // both finalize() and to_owned() just call clone() on the
+    // builder, so it doesn't matter which one we use.
+    // I just chose finalize() because it's a cool name.
     Notification::new()
         .appname(CARGO_PKG_NAME)
         .icon(ICON_PATH)
-        .to_owned()
+        .finalize()
+}
+
+/// Shows a notification with the given title and body. The app name and icon are set automatically
+/// by [`get_base_notification`].
+///
+/// # Arguments
+///
+/// * `title` - The title of the notification.
+/// * `body` - The body text of the notification.
+///
+/// # Panics
+///
+/// Panics if the notification fails to show, which should never happen.
+fn show_simple_notification<S: AsRef<str>>(title: S, body: S) {
+    get_base_notification()
+        .summary(title.as_ref())
+        .body(body.as_ref())
+        .show()
+        .unwrap_or_else(|e| unreachable!("Failed to show notification: {e:#?}"));
 }
 
 fn kill_spotify_processes() {
@@ -38,11 +60,10 @@ fn kill_spotify_processes() {
     // but we kill all of them just to be sure
     let mut procs: Vec<_> = s.processes_by_exact_name("Spotify.exe").collect();
     if procs.is_empty() {
-        get_base_notification()
-            .summary("Spotify Not Found")
-            .body("No running Spotify processes were found, so nothing was done.")
-            .show()
-            .unwrap();
+        show_simple_notification(
+            "Spotify Not Found",
+            "No running Spotify processes were found, so nothing was done.",
+        );
         return;
     }
     procs.sort_by_key(|b| std::cmp::Reverse(b.memory()));
@@ -59,11 +80,7 @@ fn kill_spotify_processes() {
 
         proc.kill();
     }
-    get_base_notification()
-        .summary("Spotify Killed")
-        .body("All Spotify processes have been killed.")
-        .show()
-        .unwrap();
+    show_simple_notification("Spotify Killed", "All Spotify processes have been killed.");
 }
 
 fn show_error_notification<E>(err: &E)
@@ -78,7 +95,12 @@ where
 }
 
 fn inner_main() -> anyhow::Result<()> {
-    let mut tray = TrayItem::new(CARGO_PKG_NAME, tray_item::IconSource::Resource("app-icon"))
+    #[cfg(debug_assertions)]
+    const TRAY_TITLE: &str = formatcp!("{CARGO_PKG_NAME} (Debug)");
+    #[cfg(not(debug_assertions))]
+    const TRAY_TITLE: &str = CARGO_PKG_NAME;
+
+    let mut tray = TrayItem::new(TRAY_TITLE, tray_item::IconSource::Resource("app-icon"))
         .context("Failed to create tray item.")?;
     let (tx, rx) = mpsc::sync_channel(1);
     let kill_spotify_tx = tx.clone();
@@ -97,13 +119,10 @@ fn inner_main() -> anyhow::Result<()> {
     })
     .context("Failed to add 'Quit' menu item.")?;
 
-    get_base_notification()
-        .summary(&format!("{CARGO_PKG_NAME} started!"))
-        .body(&format!(
-            "{CARGO_PKG_NAME} v{CARGO_PKG_VERSION} has started and is running in the tray."
-        ))
-        .show()
-        .unwrap();
+    let title = format!("{CARGO_PKG_NAME} started!");
+    let body =
+        format!("{CARGO_PKG_NAME} v{CARGO_PKG_VERSION} has started and is running in the tray.");
+    show_simple_notification(title, body);
 
     loop {
         // this MUST block. if it doesn't, the program gobbles up CPU cycles and the temperature rises to ridiculous levels
