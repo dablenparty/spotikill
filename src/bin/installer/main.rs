@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use spotikill::aumid::get_aumid;
@@ -17,6 +17,14 @@ fn get_shortcut_path(shortcut_name: &str) -> anyhow::Result<PathBuf> {
     Ok(shortcut_path)
 }
 
+unsafe fn install_shortcut(
+    aumid: &str,
+    exe_path: &Path,
+    shortcut_path: &Path,
+) -> anyhow::Result<()> {
+    todo!()
+}
+
 #[cfg(windows)]
 fn main() -> anyhow::Result<()> {
     use spotikill::constants::CARGO_PKG_NAME;
@@ -33,7 +41,10 @@ fn main() -> anyhow::Result<()> {
         std::fs::remove_file(&shortcut_path).context("Failed to delete existing shortcut.")?;
     }
 
-    todo!("Create shortcut (requires unsafe)");
+    // required for using windows crate
+    unsafe {
+        install_shortcut(AUMID, &exe_path, &shortcut_path)?;
+    }
 
     Ok(())
 }
