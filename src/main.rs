@@ -5,13 +5,9 @@ use std::sync::mpsc;
 use anyhow::Context;
 use const_format::formatcp;
 use notify_rust::Notification;
+use spotikill::constants::{CARGO_PKG_NAME, CARGO_PKG_VERSION, ICON_PATH};
 use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 use tray_item::TrayItem;
-
-const CARGO_PKG_NAME: &str = env!("CARGO_PKG_NAME");
-const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-mod aumid;
 
 enum Message {
     KillSpotify,
@@ -20,12 +16,6 @@ enum Message {
 
 /// Gets a base notification with the app name and icon set.
 fn get_base_notification() -> Notification {
-    const ICON_PATH: &str = formatcp!(
-        "{}{}app-icon.ico",
-        env!("CARGO_MANIFEST_DIR"),
-        std::path::MAIN_SEPARATOR
-    );
-
     // TODO: make a shortcut installer (ref: https://github.com/Robertof/make-shortcut-with-appusermodelid)
     //* the windows crate should expose all the necessary interfaces and functions to do this
 
