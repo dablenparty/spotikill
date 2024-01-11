@@ -57,6 +57,8 @@ fn main() -> anyhow::Result<()> {
     // TODO: once support for mac and Linux are added, split these into separate files
     // use conditional compilation here to only compile the correct one for the current platform
 
+    // TODO: make this a full-on installer since the actual program is installed with cargo install
+
     let exe_path = std::env::current_exe().context("Failed to get current executable path.")?;
     let shortcut_path = get_shortcut_path(CARGO_PKG_NAME)?;
 
