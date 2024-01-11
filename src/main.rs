@@ -11,6 +11,8 @@ use tray_item::TrayItem;
 const CARGO_PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+mod aumid;
+
 enum Message {
     KillSpotify,
     Quit,

@@ -1,5 +1,8 @@
 [package]
 name = "spotikill"
+authors = ["Hunter Davenport <dablenparty>"]
+description = "A simple tray app to kill Spotify processes."
+license = "MIT"
 version = "0.1.4"
 edition = "2021"
 default-run = "spotikill"
@@ -14,7 +17,7 @@ path = "src/bin/installer/main.rs"
 required-features = ["installer"]
 
 [features]
-installer = ["directories", "windows"]
+installer = ["directories", "uuid", "windows"]
 
 [profile.release]
 debug = false
@@ -28,6 +31,10 @@ directories = { version = "5.0", optional = true }
 notify-rust = "4"
 sysinfo = "0.30"
 tray-item = "0.9"
+uuid = { version = "1.6.1", features = [
+    "v4",
+    "macro-diagnostics",
+], optional = true }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.52.0", optional = true }
