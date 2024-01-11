@@ -5,7 +5,10 @@ use std::sync::mpsc;
 use anyhow::Context;
 use const_format::formatcp;
 use notify_rust::Notification;
-use spotikill::constants::{CARGO_PKG_NAME, CARGO_PKG_VERSION, ICON_PATH};
+use spotikill::{
+    aumid::get_aumid,
+    constants::{CARGO_PKG_NAME, CARGO_PKG_VERSION, ICON_PATH},
+};
 use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 use tray_item::TrayItem;
 
@@ -16,6 +19,7 @@ enum Message {
 
 /// Gets a base notification with the app name and icon set.
 fn get_base_notification() -> Notification {
+    const AUMID: &str = get_aumid();
     // TODO: make a shortcut installer (ref: https://github.com/Robertof/make-shortcut-with-appusermodelid)
     //* the windows crate should expose all the necessary interfaces and functions to do this
 
@@ -23,6 +27,7 @@ fn get_base_notification() -> Notification {
     // builder, so it doesn't matter which one we use.
     // I just chose finalize() because it's a cool name.
     Notification::new()
+        .app_id(AUMID)
         .appname(CARGO_PKG_NAME)
         .icon(ICON_PATH)
         .finalize()
