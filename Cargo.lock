@@ -1069,6 +1069,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "spk-installer"
+version = "0.1.0"
+
+[[package]]
 name = "spotikill"
 version = "0.1.4"
 dependencies = [

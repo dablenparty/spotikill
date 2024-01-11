@@ -1,3 +1,4 @@
+workspace = { members = ["spk-installer"] }
 [package]
 name = "spotikill"
 version = "0.1.4"
