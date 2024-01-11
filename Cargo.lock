@@ -1070,14 +1070,13 @@ dependencies = [
 
 [[package]]
 name = "spotikill"
-version = "0.1.2-dev"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "const_format",
  "notify-rust",
  "sysinfo",
  "tray-item",
- "windows 0.52.0",
  "windres",
 ]
 

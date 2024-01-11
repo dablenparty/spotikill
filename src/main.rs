@@ -7,9 +7,7 @@ use const_format::formatcp;
 use notify_rust::Notification;
 use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 use tray_item::TrayItem;
-use windows::core::HSTRING;
 
-const AUMID: &str = "com.github.dablenparty.spotikill";
 const CARGO_PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -26,7 +24,6 @@ fn get_base_notification() -> Notification {
         std::path::MAIN_SEPARATOR
     );
     Notification::new()
-        .app_id(AUMID)
         .appname(CARGO_PKG_NAME)
         .icon(ICON_PATH)
         .to_owned()
@@ -135,11 +132,6 @@ fn inner_main() -> anyhow::Result<()> {
 }
 
 fn main() {
-    unsafe {
-        let aumid_ptr = &HSTRING::from(AUMID);
-        windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID(aumid_ptr)
-            .expect("Failed to set Application User Model ID.");
-    }
     if let Err(e) = inner_main() {
         show_error_notification(&e);
         // save error to file
