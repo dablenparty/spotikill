@@ -18,5 +18,5 @@ notify-rust = "4"
 sysinfo = "0.30"
 tray-item = "0.9"
 
-[build-dependencies]
+[target.'cfg(windows)'.build-dependencies]
 windres = "0.2.2"
