@@ -134,13 +134,10 @@ fn inner_main() -> anyhow::Result<()> {
         // maybe there's a deeper reason with a better fix, but the simplest answer is usually the best.
         match rx.recv() {
             Ok(Message::Quit) => {
-                get_base_notification()
-                    .summary(&format!("{CARGO_PKG_NAME} stopped!"))
-                    .body(&format!(
-                        "{CARGO_PKG_NAME} has stopped and is no longer running in the tray."
-                    ))
-                    .show()
-                    .unwrap();
+                show_simple_notification(
+                    &format!("{CARGO_PKG_NAME} stopped!"),
+                    &format!("{CARGO_PKG_NAME} has stopped and is no longer running in the tray."),
+                );
                 break;
             }
             Ok(Message::KillSpotify) => {
