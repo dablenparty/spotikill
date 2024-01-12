@@ -3,9 +3,10 @@ name = "spotikill"
 authors = ["Hunter Davenport <dablenparty>"]
 description = "A simple tray app to kill Spotify processes."
 license = "MIT"
-version = "0.1.4"
+version = "0.2.0"
 edition = "2021"
 default-run = "spotikill"
+readme = "README.md"
 
 [[bin]]
 name = "spotikill"

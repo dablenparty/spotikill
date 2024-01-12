@@ -22,10 +22,15 @@ Minimum Supported Rust Version (MSRV): `1.75.0 stable`
 
 0. Make sure your Rust installation is at least the MSRV
 1. Clone/download this repository
-2. Install with `cargo install --path <path/to/spotikill>`
-3. Done! You can now run it with the `spotikill` command, or keep reading for how to run it on startup
-4. Make a shortcut to `spotikill` somewhere (this isn't necessary, but doing so makes using and updating the program MUCH easier)
-5. Press `Win + R` to open the Run dialog
-6. Enter `shell:startup`
-7. Move the shortcut (or executable) to the folder that opened
-8. Done again!
+2. `cd` into the directory
+3. Install with `cargo run -r --bin installer --features installer`
+4. Done! Once you restart your shell, you can run it with the `spotikill` command! (or keep reading for how to run it on startup)
+
+#### Running on startup
+
+1. Find `spotikill.exe` (it's in `C:\Users\<username>\.cargo\bin` by default), but you can use `where.exe spotikill` to find it
+2. Make a shortcut to `spotikill.exe` somewhere (moving the executable will break notifications)
+3. Press `Win + R` to open the Run dialog
+4. Enter `shell:startup`
+5. Move the shortcut to the folder that opened
+6. Done again!
