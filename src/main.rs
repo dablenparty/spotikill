@@ -20,8 +20,6 @@ enum Message {
 /// Gets a base notification with the app name and icon set.
 fn get_base_notification() -> Notification {
     const AUMID: &str = get_aumid();
-    // TODO: make a shortcut installer (ref: https://github.com/Robertof/make-shortcut-with-appusermodelid)
-    //* the windows crate should expose all the necessary interfaces and functions to do this
 
     // both finalize() and to_owned() just call clone() on the
     // builder, so it doesn't matter which one we use.
