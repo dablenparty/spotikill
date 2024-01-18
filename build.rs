@@ -11,7 +11,4 @@ fn main() {
 }
 
 #[cfg(target_os = "macos")]
-fn main() {
-    const COMPILE_WARNING: &str = "Make sure the binary is located somewhere accessible by the macOS notification daemon. See: https://github.com/hoodie/notify-rust/issues/132";
-    println!("cargo:warning={COMPILE_WARNING}");
-}
+fn main() {}
