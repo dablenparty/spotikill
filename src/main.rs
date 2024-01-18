@@ -5,10 +5,7 @@ use std::sync::mpsc;
 use anyhow::Context;
 use const_format::formatcp;
 use notify_rust::Notification;
-use spotikill::{
-    aumid::get_aumid,
-    constants::{CARGO_PKG_NAME, CARGO_PKG_VERSION, ICON_PATH},
-};
+use spotikill::constants::{CARGO_PKG_NAME, CARGO_PKG_VERSION, ICON_PATH};
 use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 use tray_item::TrayItem;
 
@@ -18,14 +15,27 @@ enum Message {
 }
 
 /// Gets a base notification with the app name and icon set.
+#[cfg(windows)]
 fn get_base_notification() -> Notification {
-    const AUMID: &str = get_aumid();
+    const AUMID: &str = spotikill::aumid::get_aumid();
 
     // both finalize() and to_owned() just call clone() on the
     // builder, so it doesn't matter which one we use.
     // I just chose finalize() because it's a cool name.
     Notification::new()
         .app_id(AUMID)
+        .appname(CARGO_PKG_NAME)
+        .icon(ICON_PATH)
+        .finalize()
+}
+
+/// Gets a base notification with the app name and icon set.
+#[cfg(target_os = "macos")]
+fn get_base_notification() -> Notification {
+    // SEE: https://internals.rust-lang.org/t/setting-a-base-target-directory/12713
+    // SEE: https://github.com/hoodie/notify-rust/issues/132
+    // SEE: https://github.com/burtonageo/cargo-bundle/blob/master/src/bundle/osx_bundle.rs
+    Notification::new()
         .appname(CARGO_PKG_NAME)
         .icon(ICON_PATH)
         .finalize()
