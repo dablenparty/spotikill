@@ -1,6 +1,9 @@
 #[cfg(debug_assertions)]
 use const_format::concatcp;
 use const_format::formatcp;
+
+#[cfg(feature = "installer")]
+pub const CARGO_BINARY: &str = env!("CARGO");
 pub const CARGO_MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
 #[cfg(debug_assertions)]
 pub const CARGO_PKG_NAME: &str = concatcp!(env!("CARGO_PKG_NAME"), "-debug");
