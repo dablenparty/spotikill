@@ -8,6 +8,7 @@ use std::{
     process,
 };
 
+use anyhow::Context;
 use const_format::concatcp;
 use spotikill::constants::{CARGO_BINARY, CARGO_PKG_NAME, CARGO_PKG_VERSION};
 
@@ -161,6 +162,33 @@ fn write_info_plist(package_root: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn make_dmg_package(src: &Path, dest: &Path) -> anyhow::Result<()> {
+    const COMMAND_NAME: &str = "hdiutil";
+    let full_command_path = which::which(COMMAND_NAME).with_context(|| {
+        format!("could not find '{COMMAND_NAME}' in PATH, this is required to package as DMG")
+    })?;
+
+    let status = process::Command::new(full_command_path)
+        .args([
+            "create",
+            &dest.to_string_lossy(),
+            "-volname",
+            CARGO_PKG_NAME,
+            "-srcfolder",
+            &src.to_string_lossy(),
+            "-ov",
+        ])
+        .status()?;
+    if !status.success() {
+        return Err(anyhow::anyhow!(
+            "failed to create DMG package, hdiutil exited with status code {}",
+            status.code().unwrap_or(-1)
+        ));
+    }
+
+    Ok(())
+}
+
 pub fn install() -> anyhow::Result<()> {
     const PACKAGE_TARGET: &str = concatcp!("target/macos/", CARGO_PKG_NAME, ".app");
 
@@ -196,6 +224,13 @@ pub fn install() -> anyhow::Result<()> {
             .join("Resources")
             .join("app-icon.icns"),
     )?;
+
+    // TODO: make icon set
+    // SEE: https://gist.github.com/jamieweavis/b4c394607641e1280d447deed5fc85fc
+    // ^ tells you how to convert directory to icns file
+    // create DMG
+    let dmg_path = PathBuf::from(format!("target/macos/{CARGO_PKG_NAME}.dmg"));
+    make_dmg_package(&package_target, &dmg_path)?;
 
     Ok(())
 }
