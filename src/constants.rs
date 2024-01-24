@@ -13,10 +13,16 @@ pub const CARGO_PKG_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CARGO_PKG_VERSION: &str = concatcp!(env!("CARGO_PKG_VERSION"), "-debug");
 #[cfg(not(debug_assertions))]
 pub const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
+#[cfg(windows)]
+const ICON_EXT: &str = "ico";
+#[cfg(unix)]
+const ICON_EXT: &str = "png";
+
 pub const ICON_PATH: &str = formatcp!(
-    "{}{}{}{}app-icon.ico",
+    "{}{}{}{}app-icon.{}",
     env!("CARGO_MANIFEST_DIR"),
     std::path::MAIN_SEPARATOR,
     "resources",
-    std::path::MAIN_SEPARATOR
+    std::path::MAIN_SEPARATOR,
+    ICON_EXT
 );
