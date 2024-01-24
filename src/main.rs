@@ -5,12 +5,15 @@ use std::{path::Path, str::FromStr};
 use anyhow::Context;
 use const_format::formatcp;
 use notify_rust::Notification;
-use spotikill::constants::{CARGO_PKG_NAME, CARGO_PKG_VERSION, ICON_PATH};
+use spotikill::{
+    constants::{CARGO_PKG_NAME, CARGO_PKG_VERSION, ICON_PATH},
+    debug_dbg,
+};
 use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 use tao::event_loop::EventLoopBuilder;
 use tray_icon::{
     menu::{Menu, MenuEvent, MenuId, MenuItemBuilder},
-    TrayIcon, TrayIconBuilder, TrayIconEvent,
+    TrayIcon, TrayIconBuilder,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -196,19 +199,12 @@ fn inner_main() -> anyhow::Result<()> {
     let mut tray = Some(build_tray()?);
 
     let menu_channel = MenuEvent::receiver();
-    let tray_channel = TrayIconEvent::receiver();
 
     event_loop.run(move |_event, _window, control_flow| {
         *control_flow = tao::event_loop::ControlFlow::Poll;
 
-        #[cfg(debug_assertions)]
-        if let Ok(event) = tray_channel.try_recv() {
-            println!("{event:?}");
-        }
-
         if let Ok(event) = menu_channel.try_recv() {
-            #[cfg(debug_assertions)]
-            println!("{event:?}");
+            debug_dbg!(&event);
 
             let msg = Message::try_from(event.id).unwrap_or_else(|e| {
                 let error_msg = anyhow::anyhow!("Got bad menu event ID: {:#?}", e);
