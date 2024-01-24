@@ -141,6 +141,14 @@ fn write_info_plist(package_root: &Path) -> anyhow::Result<()> {
     \t</array>\n"
     )?;
 
+    // hide from dock, but only in release mode
+    #[cfg(not(debug_assertions))]
+    write!(
+        plist_contents,
+        "\t<key>LSUIElement</key>\n\
+    \t<true/>\n"
+    )?;
+
     write!(
         plist_contents,
         "\t<key>NSHighResolutionCapable</key>\n\
