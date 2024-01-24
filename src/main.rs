@@ -16,6 +16,8 @@ use tray_icon::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Message {
     KillSpotify,
+    /// No-op
+    Noop,
     Quit,
 }
 
@@ -44,6 +46,7 @@ impl std::fmt::Display for Message {
         let s = match self {
             Self::KillSpotify => "KillSpotify",
             Self::Quit => "Quit",
+            Self::Noop => "No-op",
         };
         write!(f, "{s}")
     }
@@ -170,7 +173,8 @@ fn build_tray_menu() -> anyhow::Result<Menu> {
 }
 
 fn build_tray() -> anyhow::Result<TrayIcon> {
-    let icon = load_tray_icon(ICON_PATH)?;
+    let icon_path = ICON_PATH;
+    let icon = load_tray_icon(icon_path)?;
     let menu = build_tray_menu()?;
     TrayIconBuilder::new()
         .with_menu(Box::new(menu))
@@ -186,8 +190,9 @@ fn inner_main() -> anyhow::Result<()> {
         format!("{CARGO_PKG_NAME} v{CARGO_PKG_VERSION} has started and is running in the tray.");
     show_simple_notification(title, body);
 
+    // These MUST be done in this order
+    // at least on mac, the event loop builder initializes NSApp which is required
     let event_loop = EventLoopBuilder::new().build();
-
     let mut tray = Some(build_tray()?);
 
     let menu_channel = MenuEvent::receiver();
@@ -196,6 +201,7 @@ fn inner_main() -> anyhow::Result<()> {
     event_loop.run(move |_event, _window, control_flow| {
         *control_flow = tao::event_loop::ControlFlow::Poll;
 
+        #[cfg(debug_assertions)]
         if let Ok(event) = tray_channel.try_recv() {
             println!("{event:?}");
         }
@@ -203,17 +209,20 @@ fn inner_main() -> anyhow::Result<()> {
         if let Ok(event) = menu_channel.try_recv() {
             #[cfg(debug_assertions)]
             println!("{event:?}");
+
             let msg = Message::try_from(event.id).unwrap_or_else(|e| {
                 let error_msg = anyhow::anyhow!("Got bad menu event ID: {:#?}", e);
                 show_error_notification(&error_msg);
-                Message::Quit
+                Message::Noop
             });
+
             match msg {
                 Message::KillSpotify => kill_spotify_processes(),
                 Message::Quit => {
                     tray.take();
                     *control_flow = tao::event_loop::ControlFlow::Exit;
                 }
+                Message::Noop => {}
             }
         }
     });
