@@ -102,30 +102,38 @@ fn show_simple_notification<S: AsRef<str>>(title: S, body: S) {
 }
 
 fn kill_spotify_processes() {
+    #[cfg(windows)]
+    const SPOTIFY_PROCESS_NAME: &str = "Spotify.exe";
+    #[cfg(unix)]
+    const SPOTIFY_PROCESS_NAME: &str = "Spotify";
+
     let s = System::new_with_specifics(
         RefreshKind::new().with_processes(ProcessRefreshKind::new().with_memory()),
     );
+
+    // TODO: consider finding procs manually by finding the main Spotify process and then
     // sort by memory descending
     // usually, killing the Spotify process with the highest memory usage will kill all of them
     // but we kill all of them just to be sure
-    let mut procs: Vec<_> = s.processes_by_exact_name("Spotify.exe").collect();
-    if procs.is_empty() {
+    let mut spotify_procs: Vec<_> = s.processes_by_name(SPOTIFY_PROCESS_NAME).collect();
+    let proc_count = spotify_procs.len();
+    debug_dbg!(proc_count);
+    if spotify_procs.is_empty() {
         show_simple_notification(
             "Spotify Not Found",
             "No running Spotify processes were found, so nothing was done.",
         );
         return;
     }
-    procs.sort_by_key(|b| std::cmp::Reverse(b.memory()));
-    let proc_count = procs.len();
-    for proc in procs {
+    spotify_procs.sort_by_key(|b| std::cmp::Reverse(b.memory()));
+    for proc in spotify_procs {
         #[cfg(debug_assertions)]
         {
             let proc_name = proc.name();
             let proc_memory = proc.memory();
             let proc_pid = proc.pid();
             println!(
-                "Killing process {proc_name} (PID {proc_pid}) with {proc_memory} bytes of memory..."
+                "Killing process {proc_name} ({proc_pid}) with {proc_memory} bytes of memory..."
             );
         }
 
