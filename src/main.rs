@@ -184,6 +184,7 @@ fn build_tray_menu() -> anyhow::Result<Menu> {
 }
 
 fn build_tray() -> anyhow::Result<TrayIcon> {
+    // TODO: bundle icon png with installer
     let icon_path = ICON_PATH;
     let icon = load_tray_icon(icon_path)?;
     let menu = build_tray_menu()?;
@@ -204,6 +205,8 @@ fn inner_main() -> anyhow::Result<()> {
     // These MUST be done in this order
     // at least on mac, the event loop builder initializes NSApp which is required
     let event_loop = EventLoopBuilder::new().build();
+    // using an Option to allow the tray to be moved into the event loop closure
+    // and subsequently dropped when the event loop exits
     let mut tray = Some(build_tray()?);
 
     let menu_channel = MenuEvent::receiver();
@@ -223,7 +226,8 @@ fn inner_main() -> anyhow::Result<()> {
             match msg {
                 Message::KillSpotify => kill_spotify_processes(),
                 Message::Quit => {
-                    tray.take();
+                    // explicitly dropping won't work since the closure would own the tray
+                    let _ = tray.take();
                     *control_flow = tao::event_loop::ControlFlow::Exit;
                 }
                 Message::Noop => {}

@@ -233,6 +233,7 @@ pub fn install() -> anyhow::Result<()> {
             .join("app-icon.icns"),
     )?;
 
+    // TODO: just install it into /Applications right here instead of making a DMG
     // TODO: make icon set
     // SEE: https://gist.github.com/jamieweavis/b4c394607641e1280d447deed5fc85fc
     // ^ tells you how to convert directory to icns file
