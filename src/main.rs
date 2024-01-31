@@ -70,16 +70,14 @@ fn get_base_notification() -> Notification {
         .finalize()
 }
 
-/// Gets a base notification with the app name and icon set.
+/// Gets a base notification. On macOS, this just returns [`Notification::new()`].
 #[cfg(target_os = "macos")]
+#[inline(always)]
 fn get_base_notification() -> Notification {
     // SEE: https://internals.rust-lang.org/t/setting-a-base-target-directory/12713
     // SEE: https://github.com/hoodie/notify-rust/issues/132
     // SEE: https://github.com/burtonageo/cargo-bundle/blob/master/src/bundle/osx_bundle.rs
     Notification::new()
-        .appname(CARGO_PKG_NAME)
-        .icon(ICON_PATH)
-        .finalize()
 }
 
 /// Shows a notification with the given title and body. The app name and icon are set automatically
@@ -101,48 +99,65 @@ fn show_simple_notification<S: AsRef<str>>(title: S, body: S) {
         .unwrap_or_else(|e| unreachable!("Failed to show notification: {e:#?}"));
 }
 
-fn kill_spotify_processes() {
+fn kill_spotify_processes() -> anyhow::Result<()> {
     #[cfg(windows)]
     const SPOTIFY_PROCESS_NAME: &str = "Spotify.exe";
-    #[cfg(unix)]
+    #[cfg(target_os = "macos")]
     const SPOTIFY_PROCESS_NAME: &str = "Spotify";
 
     let s = System::new_with_specifics(
         RefreshKind::new().with_processes(ProcessRefreshKind::new().with_memory()),
     );
 
-    // TODO: consider finding procs manually by finding the main Spotify process and then
-    // sort by memory descending
-    // usually, killing the Spotify process with the highest memory usage will kill all of them
-    // but we kill all of them just to be sure
-    let mut spotify_procs: Vec<_> = s.processes_by_name(SPOTIFY_PROCESS_NAME).collect();
-    let proc_count = spotify_procs.len();
-    debug_dbg!(proc_count);
-    if spotify_procs.is_empty() {
-        show_simple_notification(
-            "Spotify Not Found",
-            "No running Spotify processes were found, so nothing was done.",
-        );
-        return;
+    // find the main Spotify process then gather it's children
+    // and kill them all
+    // very morbid wording
+    let all_procs = s.processes();
+    let main_spotify_proc = all_procs
+        .values()
+        .find(|p| p.name() == SPOTIFY_PROCESS_NAME)
+        .with_context(|| format!("No processes with name {SPOTIFY_PROCESS_NAME} were found."))?;
+    let main_pid = main_spotify_proc.pid();
+    let child_procs: Vec<_> = all_procs
+        .iter()
+        .filter(|(pid, proc)| {
+            **pid != main_pid
+                && proc
+                    .parent()
+                    .is_some_and(|parent_pid| parent_pid == main_pid)
+        })
+        .map(|(_, proc)| proc)
+        .collect();
+    if !main_spotify_proc.kill() {
+        return Err(anyhow::anyhow!(
+            "Failed to kill main Spotify process with PID {main_pid}."
+        ));
     }
-    spotify_procs.sort_by_key(|b| std::cmp::Reverse(b.memory()));
-    for proc in spotify_procs {
+    // wait for the main process to die, then kill the rest
+    main_spotify_proc.wait();
+    for child in &child_procs {
         #[cfg(debug_assertions)]
         {
-            let proc_name = proc.name();
-            let proc_memory = proc.memory();
-            let proc_pid = proc.pid();
+            let proc_name = child.name();
+            let proc_memory = child.memory();
+            let proc_pid = child.pid();
             println!(
                 "Killing process {proc_name} ({proc_pid}) with {proc_memory} bytes of memory..."
             );
         }
 
-        proc.kill();
+        child.kill();
     }
+    // add one for parent process
     show_simple_notification(
         "Spotify Killed",
-        &format!("{proc_count} Spotify processes have been killed."),
+        &format!(
+            "{} Spotify processes have been killed.",
+            child_procs.len() + 1
+        ),
     );
+
+    Ok(())
 }
 
 fn show_error_notification<E>(err: &E)
@@ -224,7 +239,11 @@ fn inner_main() -> anyhow::Result<()> {
             });
 
             match msg {
-                Message::KillSpotify => kill_spotify_processes(),
+                Message::KillSpotify => {
+                    if let Err(err) = kill_spotify_processes() {
+                        show_error_notification(&err);
+                    }
+                }
                 Message::Quit => {
                     // explicitly dropping won't work since the closure would own the tray
                     let _ = tray.take();
@@ -237,6 +256,7 @@ fn inner_main() -> anyhow::Result<()> {
 }
 
 fn main() {
+    // TODO: add logging
     if let Err(e) = inner_main() {
         show_error_notification(&e);
         // save error to file
