@@ -1,6 +1,4 @@
-#[cfg(debug_assertions)]
 use const_format::concatcp;
-use const_format::formatcp;
 
 #[cfg(feature = "installer")]
 pub const CARGO_BINARY: &str = env!("CARGO");
@@ -18,11 +16,11 @@ const ICON_EXT: &str = "ico";
 #[cfg(unix)]
 const ICON_EXT: &str = "png";
 
-pub const ICON_PATH: &str = formatcp!(
-    "{}{}{}{}app-icon.{}",
+pub const ICON_PATH: &str = concatcp!(
     env!("CARGO_MANIFEST_DIR"),
     std::path::MAIN_SEPARATOR,
     "resources",
     std::path::MAIN_SEPARATOR,
+    "app-icon.",
     ICON_EXT
 );

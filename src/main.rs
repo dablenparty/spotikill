@@ -102,56 +102,22 @@ fn kill_spotify_processes() -> anyhow::Result<()> {
     #[cfg(target_os = "macos")]
     const SPOTIFY_PROCESS_NAME: &str = "Spotify";
 
-    let s = System::new_with_specifics(
-        RefreshKind::new().with_processes(ProcessRefreshKind::new().with_memory()),
-    );
+    let s =
+        System::new_with_specifics(RefreshKind::new().with_processes(ProcessRefreshKind::new()));
 
-    // find the main Spotify process then gather it's children
-    // and kill them all
-    // very morbid wording
-    let all_procs = s.processes();
-    let main_spotify_proc = all_procs
-        .values()
-        .find(|p| p.name() == SPOTIFY_PROCESS_NAME)
-        .with_context(|| format!("No processes with name \"{SPOTIFY_PROCESS_NAME}\" were found."))?;
-    let main_pid = main_spotify_proc.pid();
-    let child_procs: Vec<_> = all_procs
-        .iter()
-        .filter(|(pid, proc)| {
-            **pid != main_pid
-                && proc
-                    .parent()
-                    .is_some_and(|parent_pid| parent_pid == main_pid)
-        })
-        .map(|(_, proc)| proc)
-        .collect();
-    if !main_spotify_proc.kill() {
-        return Err(anyhow::anyhow!(
-            "Failed to kill Spotify process with PID {main_pid}."
-        ));
-    }
-    // wait for the main process to die, then kill the rest
-    main_spotify_proc.wait();
-    for child in &child_procs {
-        #[cfg(debug_assertions)]
-        {
-            let proc_name = child.name();
-            let proc_memory = child.memory();
-            let proc_pid = child.pid();
-            println!(
-                "Killing process {proc_name} ({proc_pid}) with {proc_memory} bytes of memory..."
-            );
-        }
+    let spotify_proc = s
+        .processes_by_exact_name(SPOTIFY_PROCESS_NAME)
+        .next()
+        .with_context(|| {
+            format!("No processes with name \"{SPOTIFY_PROCESS_NAME}\" were found.")
+        })?;
 
-        child.kill();
-    }
-    // add one for parent process
+    spotify_proc.kill();
+    spotify_proc.wait();
+
     show_simple_notification(
         "Spotify Killed",
-        &format!(
-            "{} Spotify processes have been killed.",
-            child_procs.len() + 1
-        ),
+        &format!("{} ({})", spotify_proc.name(), spotify_proc.pid()),
     );
 
     Ok(())
