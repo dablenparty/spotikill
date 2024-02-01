@@ -5,10 +5,7 @@ use std::{path::Path, str::FromStr};
 use anyhow::Context;
 use const_format::formatcp;
 use notify_rust::Notification;
-use spotikill::{
-    constants::{CARGO_PKG_NAME, CARGO_PKG_VERSION, ICON_PATH},
-    debug_dbg,
-};
+use spotikill::constants::{CARGO_PKG_NAME, CARGO_PKG_VERSION, ICON_PATH};
 use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 use tao::event_loop::EventLoopBuilder;
 use tray_icon::{
@@ -230,7 +227,8 @@ fn inner_main() -> anyhow::Result<()> {
         *control_flow = tao::event_loop::ControlFlow::Poll;
 
         if let Ok(event) = menu_channel.try_recv() {
-            debug_dbg!(&event);
+            #[cfg(debug_assertions)]
+            println!("Received event: {:#?}", &event);
 
             let msg = Message::try_from(event.id).unwrap_or_else(|e| {
                 let error_msg = anyhow::anyhow!("Got bad menu event ID: {:#?}", e);
