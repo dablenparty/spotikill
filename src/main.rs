@@ -113,7 +113,7 @@ fn kill_spotify_processes() -> anyhow::Result<()> {
     let main_spotify_proc = all_procs
         .values()
         .find(|p| p.name() == SPOTIFY_PROCESS_NAME)
-        .with_context(|| format!("No processes with name {SPOTIFY_PROCESS_NAME} were found."))?;
+        .with_context(|| format!("No processes with name \"{SPOTIFY_PROCESS_NAME}\" were found."))?;
     let main_pid = main_spotify_proc.pid();
     let child_procs: Vec<_> = all_procs
         .iter()
@@ -127,7 +127,7 @@ fn kill_spotify_processes() -> anyhow::Result<()> {
         .collect();
     if !main_spotify_proc.kill() {
         return Err(anyhow::anyhow!(
-            "Failed to kill main Spotify process with PID {main_pid}."
+            "Failed to kill Spotify process with PID {main_pid}."
         ));
     }
     // wait for the main process to die, then kill the rest
@@ -197,8 +197,7 @@ fn build_tray_menu() -> anyhow::Result<Menu> {
 
 fn build_tray() -> anyhow::Result<TrayIcon> {
     // TODO: bundle icon png with installer
-    let icon_path = ICON_PATH;
-    let icon = load_tray_icon(icon_path)?;
+    let icon = load_tray_icon(ICON_PATH)?;
     let menu = build_tray_menu()?;
     TrayIconBuilder::new()
         .with_menu(Box::new(menu))
