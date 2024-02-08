@@ -30,7 +30,7 @@ directories = { version = "5.0", optional = true }
 image = "0.24"
 notify-rust = "4"
 sysinfo = "0.30"
-tao = "0.24"
+tao = "0.25"
 tray-icon = "0.11"
 uuid = { version = "1.6", features = [
     "v4",
