@@ -102,6 +102,9 @@ fn kill_spotify_processes() -> anyhow::Result<()> {
     #[cfg(target_os = "macos")]
     const SPOTIFY_PROCESS_NAME: &str = "Spotify";
 
+    // TODO: use regex for finding procs
+    //* first draft: [sS]potify[ \w]*(\.exe)?
+
     let s =
         System::new_with_specifics(RefreshKind::new().with_processes(ProcessRefreshKind::new()));
 
