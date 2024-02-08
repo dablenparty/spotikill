@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use spotikill::aumid::get_aumid;
-use spotikill::constants::{CARGO_MANIFEST_DIR, CARGO_PKG_NAME};
+use spotikill::constants::CARGO_PKG_NAME;
 use windows::core::{ComInterface, HSTRING};
 use windows::Win32::Storage::EnhancedStorage::PKEY_AppUserModel_ID;
 use windows::Win32::System::Com::StructuredStorage::{
@@ -76,42 +76,31 @@ unsafe fn install_shortcut(
 
 pub fn install() -> anyhow::Result<()> {
     const AUMID: &str = get_aumid();
-    #[cfg(debug_assertions)]
-    const INSTALL_COMMAND: [&str; 8] = [
-        "cargo",
-        "install",
-        "--force",
-        "--path",
-        CARGO_MANIFEST_DIR,
-        "--bin",
-        env!("CARGO_PKG_NAME"),
-        "--debug",
-    ];
     #[cfg(not(debug_assertions))]
-    const INSTALL_COMMAND: [&str; 7] = [
-        "cargo",
-        "install",
-        "--force",
-        "--path",
-        CARGO_MANIFEST_DIR,
-        "--bin",
-        CARGO_PKG_NAME,
-    ];
+    {
+        const INSTALL_COMMAND: [&str; 7] = [
+            "cargo",
+            "install",
+            "--force",
+            "--path",
+            spotikill::constants::CARGO_MANIFEST_DIR,
+            "--bin",
+            CARGO_PKG_NAME,
+        ];
 
-    // run the installer
-    let mut installer = std::process::Command::new(INSTALL_COMMAND[0]);
-    let exit_status = installer
-        .args(&INSTALL_COMMAND[1..])
-        .spawn()
-        .context("Failed to spawn installer process.")?
-        .wait()
-        .context("Failed to wait for installer process.")?;
+        // run the installer
+        let mut installer = std::process::Command::new(INSTALL_COMMAND[0]);
+        let exit_status = installer
+            .args(&INSTALL_COMMAND[1..])
+            .spawn()
+            .context("Failed to spawn installer process.")?
+            .wait()
+            .context("Failed to wait for installer process.")?;
 
-    if !exit_status.success() {
-        anyhow::bail!("Failed to install executable: {exit_status}");
+        if !exit_status.success() {
+            anyhow::bail!("Failed to install executable: {exit_status}");
+        }
     }
-
-    drop(installer);
 
     let exe_path = std::env::current_exe().context("Failed to get current executable path.")?;
     let shortcut_path = get_shortcut_path(CARGO_PKG_NAME)?;
@@ -123,12 +112,12 @@ pub fn install() -> anyhow::Result<()> {
     if shortcut_path.exists() {
         // if it does, delete it
         eprintln!("Found existing shortcut, it will be overwritten");
-        std::fs::remove_file(shortcut_path).context("Failed to delete existing shortcut.")?;
+        std::fs::remove_file(&shortcut_path).context("Failed to delete existing shortcut.")?;
     }
 
     unsafe {
         CoInitializeEx(None, COINIT_APARTMENTTHREADED)?;
-        install_shortcut(AUMID, exe_path, shortcut_path)?;
+        install_shortcut(AUMID, &exe_path, &shortcut_path)?;
     };
     println!(
         "Successfully installed shortcut to {}",
