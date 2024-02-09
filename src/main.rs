@@ -5,6 +5,8 @@ use std::{path::Path, str::FromStr};
 use anyhow::Context;
 use const_format::formatcp;
 use notify_rust::Notification;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use spotikill::constants::{CARGO_PKG_NAME, CARGO_PKG_VERSION, ICON_PATH};
 use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 use tao::event_loop::EventLoopBuilder;
@@ -97,31 +99,36 @@ fn show_simple_notification<S: AsRef<str>>(title: S, body: S) {
 }
 
 fn kill_spotify_processes() -> anyhow::Result<()> {
-    #[cfg(windows)]
-    const SPOTIFY_PROCESS_NAME: &str = "Spotify.exe";
-    #[cfg(target_os = "macos")]
-    const SPOTIFY_PROCESS_NAME: &str = "Spotify";
-
-    // TODO: use regex for finding procs
-    //* first draft: [sS]potify[ \w]*(\.exe)?
+    static SPOTIFY_REGEX: Lazy<Regex> =
+        Lazy::new(|| Regex::new("[sS]potify[ \\w]*(\\.exe)?").unwrap());
 
     let s =
         System::new_with_specifics(RefreshKind::new().with_processes(ProcessRefreshKind::new()));
 
-    let spotify_proc = s
-        .processes_by_exact_name(SPOTIFY_PROCESS_NAME)
-        .next()
-        .with_context(|| {
-            format!("No processes with name \"{SPOTIFY_PROCESS_NAME}\" were found.")
-        })?;
+    let spotify_procs: Vec<_> = s
+        .processes()
+        .values()
+        .filter(|proc| {
+            let name = proc.name();
+            SPOTIFY_REGEX.is_match(name)
+        })
+        .collect();
 
-    spotify_proc.kill();
-    spotify_proc.wait();
+    if spotify_procs.is_empty() {
+        return Err(anyhow::anyhow!("No Spotify processes found"));
+    }
 
-    show_simple_notification(
-        "Spotify Killed",
-        &format!("{} ({})", spotify_proc.name(), spotify_proc.pid()),
-    );
+    let proc_count = spotify_procs.len();
+
+    for proc in &spotify_procs {
+        #[cfg(debug_assertions)]
+        println!("Killing process: {} ({})", proc.name(), proc.pid());
+
+        proc.kill();
+        proc.wait();
+    }
+
+    show_simple_notification("Spotify Killed", &format!("{proc_count} total processes"));
 
     Ok(())
 }
