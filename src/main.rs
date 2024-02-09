@@ -1,25 +1,61 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use std::sync::mpsc;
+use std::{path::Path, str::FromStr};
 
 use anyhow::Context;
 use const_format::formatcp;
 use notify_rust::Notification;
-use spotikill::{
-    aumid::get_aumid,
-    constants::{CARGO_PKG_NAME, CARGO_PKG_VERSION, ICON_PATH},
-};
+use spotikill::constants::{CARGO_PKG_NAME, CARGO_PKG_VERSION, ICON_PATH};
 use sysinfo::{ProcessRefreshKind, RefreshKind, System};
-use tray_item::TrayItem;
+use tao::event_loop::EventLoopBuilder;
+use tray_icon::{
+    menu::{Menu, MenuEvent, MenuId, MenuItemBuilder},
+    TrayIcon, TrayIconBuilder,
+};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Message {
     KillSpotify,
+    /// No-op
+    Noop,
     Quit,
 }
 
+impl FromStr for Message {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "KillSpotify" => Ok(Self::KillSpotify),
+            "Quit" => Ok(Self::Quit),
+            _ => Err(anyhow::anyhow!("Invalid message: {s}")),
+        }
+    }
+}
+
+impl TryFrom<MenuId> for Message {
+    type Error = anyhow::Error;
+
+    fn try_from(value: MenuId) -> Result<Self, Self::Error> {
+        Self::from_str(&value.0)
+    }
+}
+
+impl std::fmt::Display for Message {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::KillSpotify => "KillSpotify",
+            Self::Quit => "Quit",
+            Self::Noop => "No-op",
+        };
+        write!(f, "{s}")
+    }
+}
+
 /// Gets a base notification with the app name and icon set.
+#[cfg(windows)]
 fn get_base_notification() -> Notification {
-    const AUMID: &str = get_aumid();
+    const AUMID: &str = spotikill::aumid::get_aumid();
 
     // both finalize() and to_owned() just call clone() on the
     // builder, so it doesn't matter which one we use.
@@ -29,6 +65,16 @@ fn get_base_notification() -> Notification {
         .appname(CARGO_PKG_NAME)
         .icon(ICON_PATH)
         .finalize()
+}
+
+/// Gets a base notification. On macOS, this just returns [`Notification::new()`].
+#[cfg(target_os = "macos")]
+#[inline(always)]
+fn get_base_notification() -> Notification {
+    // SEE: https://internals.rust-lang.org/t/setting-a-base-target-directory/12713
+    // SEE: https://github.com/hoodie/notify-rust/issues/132
+    // SEE: https://github.com/burtonageo/cargo-bundle/blob/master/src/bundle/osx_bundle.rs
+    Notification::new()
 }
 
 /// Shows a notification with the given title and body. The app name and icon are set automatically
@@ -50,40 +96,34 @@ fn show_simple_notification<S: AsRef<str>>(title: S, body: S) {
         .unwrap_or_else(|e| unreachable!("Failed to show notification: {e:#?}"));
 }
 
-fn kill_spotify_processes() {
-    let s = System::new_with_specifics(
-        RefreshKind::new().with_processes(ProcessRefreshKind::new().with_memory()),
-    );
-    // sort by memory descending
-    // usually, killing the Spotify process with the highest memory usage will kill all of them
-    // but we kill all of them just to be sure
-    let mut procs: Vec<_> = s.processes_by_exact_name("Spotify.exe").collect();
-    if procs.is_empty() {
-        show_simple_notification(
-            "Spotify Not Found",
-            "No running Spotify processes were found, so nothing was done.",
-        );
-        return;
-    }
-    procs.sort_by_key(|b| std::cmp::Reverse(b.memory()));
-    let proc_count = procs.len();
-    for proc in procs {
-        #[cfg(debug_assertions)]
-        {
-            let proc_name = proc.name();
-            let proc_memory = proc.memory();
-            let proc_pid = proc.pid();
-            println!(
-                "Killing process {proc_name} (PID {proc_pid}) with {proc_memory} bytes of memory..."
-            );
-        }
+fn kill_spotify_processes() -> anyhow::Result<()> {
+    #[cfg(windows)]
+    const SPOTIFY_PROCESS_NAME: &str = "Spotify.exe";
+    #[cfg(target_os = "macos")]
+    const SPOTIFY_PROCESS_NAME: &str = "Spotify";
 
-        proc.kill();
-    }
+    // TODO: use regex for finding procs
+    //* first draft: [sS]potify[ \w]*(\.exe)?
+
+    let s =
+        System::new_with_specifics(RefreshKind::new().with_processes(ProcessRefreshKind::new()));
+
+    let spotify_proc = s
+        .processes_by_exact_name(SPOTIFY_PROCESS_NAME)
+        .next()
+        .with_context(|| {
+            format!("No processes with name \"{SPOTIFY_PROCESS_NAME}\" were found.")
+        })?;
+
+    spotify_proc.kill();
+    spotify_proc.wait();
+
     show_simple_notification(
         "Spotify Killed",
-        &format!("{proc_count} Spotify processes have been killed."),
+        &format!("{} ({})", spotify_proc.name(), spotify_proc.pid()),
     );
+
+    Ok(())
 }
 
 fn show_error_notification<E>(err: &E)
@@ -97,60 +137,92 @@ where
         .unwrap();
 }
 
+fn load_tray_icon<P: AsRef<Path>>(src: P) -> anyhow::Result<tray_icon::Icon> {
+    let src = src.as_ref();
+    let icon_data = image::open(src).with_context(|| format!("Failed to read icon at {src:?}"))?;
+    let rgba8_data = icon_data.to_rgba8();
+    let (width, height) = rgba8_data.dimensions();
+    let rgba8_data = rgba8_data.into_raw();
+
+    tray_icon::Icon::from_rgba(rgba8_data, width, height)
+        .context("Failed to create tray icon from RGBA8 data.")
+}
+
+fn build_tray_menu() -> anyhow::Result<Menu> {
+    let quit_item = MenuItemBuilder::new()
+        .text("Quit")
+        .id(Message::Quit.into())
+        .enabled(true)
+        .build();
+    let kill_spotify_item = MenuItemBuilder::new()
+        .text("Kill Spotify")
+        .id(Message::KillSpotify.into())
+        .enabled(true)
+        .build();
+    let menu = Menu::new();
+    menu.append_items(&[&kill_spotify_item, &quit_item])?;
+    Ok(menu)
+}
+
+fn build_tray() -> anyhow::Result<TrayIcon> {
+    // TODO: bundle icon png with installer
+    let icon = load_tray_icon(ICON_PATH)?;
+    let menu = build_tray_menu()?;
+    TrayIconBuilder::new()
+        .with_menu(Box::new(menu))
+        .with_tooltip(CARGO_PKG_NAME)
+        .with_icon(icon)
+        .build()
+        .context("Failed to build tray icon.")
+}
+
 fn inner_main() -> anyhow::Result<()> {
-    #[cfg(debug_assertions)]
-    const TRAY_TITLE: &str = formatcp!("{CARGO_PKG_NAME} (Debug)");
-    #[cfg(not(debug_assertions))]
-    const TRAY_TITLE: &str = CARGO_PKG_NAME;
-
-    let mut tray = TrayItem::new(TRAY_TITLE, tray_item::IconSource::Resource("app-icon"))
-        .context("Failed to create tray item.")?;
-    let (tx, rx) = mpsc::sync_channel(1);
-    let kill_spotify_tx = tx.clone();
-    tray.add_menu_item("Kill Spotify", move || {
-        if let Err(e) = kill_spotify_tx.send(Message::KillSpotify) {
-            show_error_notification(&e);
-        }
-    })
-    .context("Failed to add 'Kill Spotify' menu item.")?;
-
-    let quit_tx = tx;
-    tray.add_menu_item("Quit", move || {
-        if let Err(e) = quit_tx.send(Message::Quit) {
-            show_error_notification(&e);
-        }
-    })
-    .context("Failed to add 'Quit' menu item.")?;
-
     let title = format!("{CARGO_PKG_NAME} started!");
     let body =
         format!("{CARGO_PKG_NAME} v{CARGO_PKG_VERSION} has started and is running in the tray.");
     show_simple_notification(title, body);
 
-    loop {
-        // this MUST block. if it doesn't, the program gobbles up CPU cycles and the temperature rises to ridiculous levels
-        // maybe there's a deeper reason with a better fix, but the simplest answer is usually the best.
-        match rx.recv() {
-            Ok(Message::Quit) => {
-                show_simple_notification(
-                    &format!("{CARGO_PKG_NAME} stopped!"),
-                    &format!("{CARGO_PKG_NAME} has stopped and is no longer running in the tray."),
-                );
-                break;
-            }
-            Ok(Message::KillSpotify) => {
-                kill_spotify_processes();
-            }
-            Err(e) => {
-                show_error_notification(&e);
-                break;
+    // These MUST be done in this order
+    // at least on mac, the event loop builder initializes NSApp which is required
+    let event_loop = EventLoopBuilder::new().build();
+    // using an Option to allow the tray to be moved into the event loop closure
+    // and subsequently dropped when the event loop exits
+    let mut tray = Some(build_tray()?);
+
+    let menu_channel = MenuEvent::receiver();
+
+    event_loop.run(move |_event, _window, control_flow| {
+        *control_flow = tao::event_loop::ControlFlow::Poll;
+
+        if let Ok(event) = menu_channel.try_recv() {
+            #[cfg(debug_assertions)]
+            println!("Received event: {:#?}", &event);
+
+            let msg = Message::try_from(event.id).unwrap_or_else(|e| {
+                let error_msg = anyhow::anyhow!("Got bad menu event ID: {:#?}", e);
+                show_error_notification(&error_msg);
+                Message::Noop
+            });
+
+            match msg {
+                Message::KillSpotify => {
+                    if let Err(err) = kill_spotify_processes() {
+                        show_error_notification(&err);
+                    }
+                }
+                Message::Quit => {
+                    // explicitly dropping won't work since the closure would own the tray
+                    let _ = tray.take();
+                    *control_flow = tao::event_loop::ControlFlow::Exit;
+                }
+                Message::Noop => {}
             }
         }
-    }
-    Ok(())
+    });
 }
 
 fn main() {
+    // TODO: add logging
     if let Err(e) = inner_main() {
         show_error_notification(&e);
         // save error to file

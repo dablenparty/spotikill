@@ -1,11 +1,14 @@
-#![cfg(windows)]
+#[cfg(windows)]
 fn main() {
     windres::Build::new()
         .compile("tray-props.rc")
         .expect("Failed to compile tray-props.rc");
 }
 
-#[cfg(not(windows))]
+#[cfg(all(not(windows), not(target_os = "macos")))]
 fn main() {
-    compile_error!("Currently, this program only works on Windows. Sorry!")
+    println!("cargo:warning=Currently, this program is only guaranteed to work on Windows.")
 }
+
+#[cfg(target_os = "macos")]
+fn main() {}

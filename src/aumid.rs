@@ -1,3 +1,5 @@
+#![cfg(windows)]
+
 use const_format::formatcp;
 
 use crate::constants::CARGO_PKG_NAME;
