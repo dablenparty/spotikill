@@ -2148,6 +2148,8 @@ dependencies = [
  "directories",
  "image",
  "notify-rust",
+ "once_cell",
+ "regex",
  "sysinfo",
  "tao",
  "tray-icon",
