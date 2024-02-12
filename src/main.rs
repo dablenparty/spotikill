@@ -1,3 +1,4 @@
+#![warn(clippy::all, clippy::pedantic)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 use std::{path::Path, str::FromStr};
@@ -71,6 +72,7 @@ fn get_base_notification() -> Notification {
 
 /// Gets a base notification. On macOS, this just returns [`Notification::new()`].
 #[cfg(target_os = "macos")]
+#[allow(clippy::inline_always)]
 #[inline(always)]
 fn get_base_notification() -> Notification {
     // SEE: https://internals.rust-lang.org/t/setting-a-base-target-directory/12713
@@ -114,9 +116,7 @@ fn kill_spotify_processes() -> anyhow::Result<()> {
         })
         .collect();
 
-    if spotify_procs.is_empty() {
-        return Err(anyhow::anyhow!("No Spotify processes found"));
-    }
+    anyhow::ensure!(!spotify_procs.is_empty(), "No Spotify processes found");
 
     let proc_count = spotify_procs.len();
 
@@ -238,6 +238,6 @@ fn main() {
             env!("CARGO_MANIFEST_DIR"),
             std::path::MAIN_SEPARATOR
         );
-        std::fs::write(error_file_path, format!("{:#?}", e)).unwrap();
+        std::fs::write(error_file_path, format!("{e:#?}")).unwrap();
     }
 }
