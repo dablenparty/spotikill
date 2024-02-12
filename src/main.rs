@@ -100,7 +100,7 @@ fn show_simple_notification<S: AsRef<str>>(title: S, body: S) {
 
 fn kill_spotify_processes() -> anyhow::Result<()> {
     static SPOTIFY_REGEX: Lazy<Regex> =
-        Lazy::new(|| Regex::new("[sS]potify[ \\w]*(\\.exe)?").unwrap());
+        Lazy::new(|| Regex::new(r"([sS]potify)([ \w()]*)(\.exe)?").unwrap());
 
     let s =
         System::new_with_specifics(RefreshKind::new().with_processes(ProcessRefreshKind::new()));
