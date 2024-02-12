@@ -1,13 +1,17 @@
 #![warn(clippy::all, clippy::pedantic)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use std::{path::Path, str::FromStr};
+use std::{
+    fmt::{Debug, Display},
+    path::Path,
+    str::FromStr,
+};
 
 use anyhow::Context;
-use const_format::formatcp;
 use notify_rust::Notification;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use simplelog::{debug, error, info};
 use spotikill::constants::{CARGO_PKG_NAME, CARGO_PKG_VERSION, ICON_PATH};
 use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 use tao::event_loop::EventLoopBuilder;
@@ -44,7 +48,7 @@ impl TryFrom<MenuId> for Message {
     }
 }
 
-impl std::fmt::Display for Message {
+impl Display for Message {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
             Self::KillSpotify => "KillSpotify",
@@ -93,9 +97,16 @@ fn get_base_notification() -> Notification {
 ///
 /// Panics if the notification fails to show, which should never happen.
 fn show_simple_notification<S: AsRef<str>>(title: S, body: S) {
+    let title = title.as_ref();
+    let body = body.as_ref();
+
+    info!("Showing notification:");
+    info!("Title: <cyan>{title}</>");
+    info!("Body: <bright-green>{body}</>");
+
     get_base_notification()
-        .summary(title.as_ref())
-        .body(body.as_ref())
+        .summary(title)
+        .body(body)
         .show()
         .unwrap_or_else(|e| unreachable!("Failed to show notification: {e:#?}"));
 }
@@ -121,8 +132,11 @@ fn kill_spotify_processes() -> anyhow::Result<()> {
     let proc_count = spotify_procs.len();
 
     for proc in &spotify_procs {
-        #[cfg(debug_assertions)]
-        println!("Killing process: {} ({})", proc.name(), proc.pid());
+        debug!(
+            "Killing process: <bright-red>{} ({})</>",
+            proc.name(),
+            proc.pid()
+        );
 
         proc.kill();
         proc.wait();
@@ -135,8 +149,9 @@ fn kill_spotify_processes() -> anyhow::Result<()> {
 
 fn show_error_notification<E>(err: &E)
 where
-    E: std::fmt::Display + Send + Sync + 'static,
+    E: Display + Debug + Send + Sync + 'static,
 {
+    error!("An error occurred: <red>{err:?}</>");
     get_base_notification()
         .summary("spotikill Error")
         .body(&format!("An error occurred: {err}"))
@@ -147,6 +162,7 @@ where
 fn load_tray_icon<P: AsRef<Path>>(src: P) -> anyhow::Result<tray_icon::Icon> {
     let src = src.as_ref();
     let icon_data = image::open(src).with_context(|| format!("Failed to read icon at {src:?}"))?;
+    debug!("Found icon at: {}", src.display());
     let rgba8_data = icon_data.to_rgba8();
     let (width, height) = rgba8_data.dimensions();
     let rgba8_data = rgba8_data.into_raw();
@@ -202,8 +218,7 @@ fn inner_main() -> anyhow::Result<()> {
         *control_flow = tao::event_loop::ControlFlow::Poll;
 
         if let Ok(event) = menu_channel.try_recv() {
-            #[cfg(debug_assertions)]
-            println!("Received event: {:#?}", &event);
+            debug!("Received event: <blue>{:#?}</>", &event);
 
             let msg = Message::try_from(event.id).unwrap_or_else(|e| {
                 let error_msg = anyhow::anyhow!("Got bad menu event ID: {:#?}", e);
@@ -228,16 +243,25 @@ fn inner_main() -> anyhow::Result<()> {
     });
 }
 
-fn main() {
-    // TODO: add logging
+#[cfg(debug_assertions)]
+fn init_logging() -> anyhow::Result<()> {
+    use simplelog::{Config, SimpleLogger};
+
+    SimpleLogger::init(simplelog::LevelFilter::Debug, Config::default())
+        .context("Failed to initialize logging.")
+}
+
+#[cfg(not(debug_assertions))]
+fn init_logging() -> anyhow::Result<()> {
+    todo!("Implement init_logging for release builds");
+}
+
+fn main() -> anyhow::Result<()> {
+    init_logging()?;
     if let Err(e) = inner_main() {
         show_error_notification(&e);
-        // save error to file
-        let error_file_path = formatcp!(
-            "{}{}error.txt",
-            env!("CARGO_MANIFEST_DIR"),
-            std::path::MAIN_SEPARATOR
-        );
-        std::fs::write(error_file_path, format!("{e:#?}")).unwrap();
+        error!("An irrecoverable error occurred and is described below:");
+        error!("{e:#?}");
     }
+    Ok(())
 }
