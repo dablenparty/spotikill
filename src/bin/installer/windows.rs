@@ -17,7 +17,7 @@ use windows::Win32::UI::Shell::PropertiesSystem::IPropertyStore;
 use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
 
 fn get_shortcut_path(shortcut_name: &str) -> anyhow::Result<PathBuf> {
-    const START_MENU_PATH_COMPONENTS: &str = r"Microsoft\Windows\Start Menu\Programs";
+    const START_MENU_PATH_COMPONENTS: &str = r"Microsoft\Windows\Start Menu\Programs\Startup";
     let app_data_folder = {
         let base_dirs = directories::BaseDirs::new().context("Failed to get home directory")?;
         base_dirs.config_dir().to_path_buf()
@@ -102,7 +102,13 @@ pub fn install() -> anyhow::Result<()> {
         }
     }
 
-    let exe_path = std::env::current_exe().context("Failed to get current executable path.")?;
+    let exe_path = directories::UserDirs::new()
+        .context("Could not load home directory")?
+        .home_dir()
+        .join(".cargo")
+        .join("bin")
+        .join(CARGO_PKG_NAME)
+        .with_extension("exe");
     let shortcut_path = get_shortcut_path(CARGO_PKG_NAME)?;
 
     #[cfg(debug_assertions)]
